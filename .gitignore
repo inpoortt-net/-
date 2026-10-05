@@ -1,0 +1,9 @@
+# ===== Keil MDK 编译输出（对象文件/axf/hex/map 等全在这里，不进仓库） =====
+MDK-ARM/test 0.1/
+
+# ===== Keil / Windows 临时文件 =====
+*.uvguix.*
+*.uvgui.*
+*.bak
+Thumbs.db
+Desktop.ini
