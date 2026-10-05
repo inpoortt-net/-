@@ -504,6 +504,13 @@ DCBFD81241859A99AAF500BE899D717082704211B760218EDFF58BC21120FDAE  MDK-ARM\test 0
 - 生成的烧录文件：`MDK-ARM\test 0.1\test 0.hex`
 - 警告：本固件只适配“低电平点亮”的新接法；**接线改好之前不要烧这版**（旧接法下灯会失效）
 
+## 版本管理（git）　2026-10-06
+
+- 项目启用 git：本地仓库 `C:\stm32\code\test 0.1\.git` + GitHub 远程 `https://github.com/inpoortt-net/-`
+- 首次提交 `63c42ac`（v0.7.6 全量快照）；清理提交 `d364b10`；均已推送
+- 以后每次改动的流程末尾增加：**git commit**（提交信息 = 版本号 + 一句话）；推送用 `git push`（远程已配对 origin）
+- `.gitignore` 已排除：Keil 编译输出目录（`MDK-ARM/test 0.1/`）、`*.uvguix.*`、`*.exe`、`*.lst`、`*.bak` 等
+
 ## v0.7.7 — 教学注释加强（只有注释变化，行为零改动）　2026-10-05
 
 - 目的：为 RoboMaster 二面做准备——代码要"读得懂、讲得出"（面试会看代码、提问）
