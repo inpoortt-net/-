@@ -5,5 +5,7 @@ MDK-ARM/test 0.1/
 *.uvguix.*
 *.uvgui.*
 *.bak
+*.lst
+*.exe
 Thumbs.db
 Desktop.ini
