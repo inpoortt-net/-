@@ -101,6 +101,7 @@ static uint8_t settings_flash_load(void)
 // 通用：往 Flash 追加写一条 16 字节记录（从前往后找空格子；写满整页才擦掉重来）。
 // 为什么用“账本追加”：Flash 只能整页擦除（1KB/次），追加写把擦除次数摊薄；
 // 而且任意一条写坏都不影响老记录，校验不过跳过就行
+// 【Flash 写入流程】① 解锁（写使能）→ ② 擦除（需要时）→ ③ 写入 → ④ 上锁
 static void settings_flash_write(const uint8_t *rec)
 {
 	FLASH_EraseInitTypeDef erase;
@@ -123,11 +124,13 @@ static void settings_flash_write(const uint8_t *rec)
 		}
 	}
 
-	// 2. 开写
+	// 2. 开写：Flash 写入【四步曲】——① 解锁（写使能）→ ② 擦除（需要时）→ ③ 写入 → ④ 上锁
+	//    ① 解锁（写使能）：解除写保护，之后才能擦除和写入
 	HAL_FLASH_Unlock();
 
 	if (need_erase)
 	{
+		//    ② 擦除（需要时才做）：整页擦回全 1（0xFFFFFFFF）——Flash 只能把 1 写成 0，要写新数据必须先擦
 		erase.TypeErase = FLASH_TYPEERASE_PAGES;
 		erase.PageAddress = SETTINGS_FLASH_ADDR;
 		erase.NbPages = 1;
@@ -139,6 +142,7 @@ static void settings_flash_write(const uint8_t *rec)
 		addr = SETTINGS_FLASH_ADDR;
 	}
 
+	//    ③ 写入（编程）：按半字（2 字节）逐个写——F1 的编程粒度就是半字，16 字节分 8 次
 	p = (const uint16_t *)rec;
 	for (i = 0; i < (uint8_t)(SETTINGS_SLOT_SIZE / 2); i++)
 	{
@@ -148,6 +152,7 @@ static void settings_flash_write(const uint8_t *rec)
 		}
 	}
 
+	//    ④ 上锁：恢复写保护，防止后续代码误改 Flash
 	HAL_FLASH_Lock();
 }
 

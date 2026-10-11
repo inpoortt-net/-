@@ -130,6 +130,7 @@ static uint8_t clock_slot_checksum(const clock_slot_t *slot)
 // 把当前时间存进 Flash：从前往后找空“格子”追加写入（不覆盖旧数据）。
 // 为什么用“账本”而不是直接覆盖一格：Flash 只能整页擦除（1KB/次），
 // 追加式写入让“擦一页”摊给 64 次写入 → 大大延长 Flash 擦写寿命
+// 【Flash 写入流程】① 解锁（写使能）→ ② 擦除（需要时）→ ③ 写入 → ④ 上锁
 static void clock_flash_save(void)
 {
 	clock_slot_t slot;
@@ -168,12 +169,13 @@ static void clock_flash_save(void)
 	}
 	slot.checksum = clock_slot_checksum(&slot);
 
-	// 3. 开写
+	// 3. 开写：Flash 写入【四步曲】——① 解锁（写使能）→ ② 擦除（需要时）→ ③ 写入 → ④ 上锁
+	//    ① 解锁（写使能）：解除写保护，之后才能擦除和写入
 	HAL_FLASH_Unlock();
 
 	if (need_erase)
 	{
-		// 整页擦掉（擦完后所有格子都变成 0xFFFFFFFF）
+		//    ② 擦除（需要时才做）：整页擦回全 1（0xFFFFFFFF）——Flash 只能把 1 写成 0，要写新数据必须先擦
 		erase.TypeErase = FLASH_TYPEERASE_PAGES;
 		erase.PageAddress = CLOCK_FLASH_ADDR;
 		erase.NbPages = 1;
@@ -185,7 +187,7 @@ static void clock_flash_save(void)
 		addr = CLOCK_FLASH_ADDR;
 	}
 
-	// 按半字（2 字节）一个个写进去
+	//    ③ 写入（编程）：按半字（2 字节）逐个写——F1 的编程粒度就是半字，16 字节分 8 次
 	p = (const uint16_t *)&slot;
 	for (i = 0; i < (uint8_t)(CLOCK_SLOT_SIZE / 2); i++)
 	{
@@ -195,6 +197,7 @@ static void clock_flash_save(void)
 		}
 	}
 
+	//    ④ 上锁：恢复写保护，防止后续代码误改 Flash
 	HAL_FLASH_Lock();
 }
 

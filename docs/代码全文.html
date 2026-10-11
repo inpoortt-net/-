@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>代码全文（v0.7.7 · 只收录我们写的代码）</title>
+<title>代码全文（v0.7.8 · 只收录我们写的代码 · 含模块导读）</title>
 <style>
   body { font-family: "Microsoft YaHei", "Segoe UI", sans-serif; margin: 0; background: #f5f6f8; color: #222; }
   header { background: #1f3a5f; color: #fff; padding: 18px 28px; }
@@ -10,9 +10,10 @@
   header p { margin: 2px 0; font-size: 13px; opacity: .9; }
   .toc { background: #fff; margin: 16px 28px; padding: 12px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
   .toc a { color: #1f3a5f; text-decoration: none; margin-right: 14px; line-height: 1.9; white-space: nowrap; }
-  .toc a:hover { text-decoration: underline; }
   section { background: #fff; margin: 16px 28px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); overflow: hidden; }
   section h2 { background: #e8eef6; margin: 0; padding: 10px 20px; font-size: 16px; color: #1f3a5f; }
+  .intro { padding: 10px 20px 2px 20px; }
+  .intro blockquote { margin: 0; padding: 8px 14px; border-left: 4px solid #7aa2c8; background: #f3f7fb; }
   pre { margin: 0; padding: 16px 20px; overflow-x: auto; font-family: Consolas, "Courier New", monospace; font-size: 13px; line-height: 1.55; }
   .note { padding: 8px 20px; color: #8a6d3b; background: #fcf8e3; font-size: 13px; }
   @media print { body { background: #fff; } section, .toc { box-shadow: none; border: 1px solid #ddd; } }
@@ -20,9 +21,9 @@
 </head>
 <body>
 <header>
-  <h1>代码全文 —— STM32 简易电子密码锁（v0.7.7）</h1>
-  <p>只收录“我们写的”代码；CubeMX 自动生成的底层代码不收录（配置思路见《代码导读手册》第 1 章）</p>
-  <p>导出时间 2026-10-05 · 打印时建议横向或缩放 80%</p>
+  <h1>代码全文 —— STM32 简易电子密码锁（v0.7.8）</h1>
+  <p>只收录“我们写的”代码；每个模块带【📘 模块导读】（作用 / 为什么 / 原理 / 知识）</p>
+  <p>导出时间 2026-10-07 · 打印时建议横向或缩放 80%</p>
 </header>
 
 <div class="toc">
@@ -48,6 +49,13 @@
 
 <section id="f1">
 <h2>1. main.c（摘录）</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：程序的"大门"。上电后从它开始跑：CubeMX 先把硬件配好，它再来调我们写的 <code>key_init()</code> / <code>ui_init()</code>，最后进 <code>while(1)</code> 不断调 <code>ui_task()</code>。
+- <strong>为什么这么写</strong>：把"硬件配置"和"业务逻辑"彻底分开——CubeMX 管底层（不用我们手写），我们的代码全部写在 <code>USER CODE</code> 保险箱里，重新生成也不会丢；主循环只当"报幕员"，活都分给各模块。
+- <strong>原理</strong>：上电 → <code>HAL_Init</code>（内含 1ms 滴答）→ 时钟配到 72MHz → GPIO / I2C / TIM3 初始化 → 我们的初始化 → 死循环。
+- <strong>用到的知识</strong>：STM32 启动流程、SysTick、CubeMX 的 USER CODE 机制、主循环 + 中断的架构。</p>
+</blockquote></div>
 <pre>/* ============ main.c（只摘录“我们写的”部分） ============
  * main.c 由 CubeMX 生成：里面绝大部分是外设初始化底稿；
  * 那层底稿的作用 = 把《手册》第 1 章讲的硬件配置真正生效（不逐行讲）。
@@ -75,6 +83,13 @@ while (1)
 </section>
 <section id="f2">
 <h2>2. stm32f1xx_it.c（摘录）</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：中断服务程序的"挂钩处"。我们只在 SysTick 中断里加了两行：<code>key_tick()</code>（每 1ms 扫按键）和 <code>buzzer_tick()</code>（推音乐）。
+- <strong>为什么这么写</strong>：按键随时可能被按下——放主循环里会被刷屏挡住、漏检；放中断里就"永不漏检"。但中断必须短：这两行都是微秒级，看一眼就走。
+- <strong>原理</strong>：SysTick 每 1ms 触发一次中断 → 执行这两行 → 立刻返回主循环（前台/后台分工）。
+- <strong>用到的知识</strong>：中断机制、SysTick、中断为什么必须短、前台/后台分工。</p>
+</blockquote></div>
 <pre>/* ======== stm32f1xx_it.c（只摘录“我们写的”部分） ========
  * 中断服务文件，同样是 CubeMX 生成的底稿；
  * 我们只加了两处：
@@ -97,6 +112,14 @@ void SysTick_Handler(void)
 </section>
 <section id="f3">
 <h2>3. key.c</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：4 个按键的"翻译官"——把引脚上抖动的电压，翻译成干净的"短按 / 长按 / 连发"事件。
+- <strong>为什么这么写</strong>：① 按钮会弹跳 5~20ms，不消抖会被当成按了好几次；② 消抖用"状态机 + 计数"而不是延时——不卡程序；③ 中断只负责"记录事件"，主循环慢慢处理——用队列解耦，单放单取还不用加锁。
+- <strong>原理</strong>：四态状态机（空闲 → 按下消抖 → 按住 → 松开消抖）；"连续 4 次扫描（20ms）都对"才确认；按住 800ms 发长按，之后每 200ms 发连发；事件打包成 16 位进环形队列。
+- <strong>用到的知识</strong>：GPIO 输入 + 内部上拉、按键消抖、有限状态机、环形队列（FIFO）、生产者-消费者、位运算。
+- <strong>看代码抓手</strong>：<code>key_process()</code> 的四个状态 → <code>key_push()</code>/<code>key_get_event()</code> 队列一放一取 → 参数都在文件顶部。</p>
+</blockquote></div>
 <pre>// key.c —— 4 个按键驱动：扫描消抖 + 事件队列
 //
 // 【接线】PA0=UP、PA1=DOWN、PA2=OK、PA3=BACK；CubeMX 配成“输入 + 内部上拉”，
@@ -328,6 +351,14 @@ uint8_t key_get_event(uint8_t *key, uint8_t *event)
 </section>
 <section id="f4">
 <h2>4. oled.c</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：OLED 的"画笔 + 搬运工"——在内存里画点、画字、画汉字，然后整屏推给屏幕。
+- <strong>为什么这么写</strong>：① 先画在"显存"里再整屏推——I2C 很慢（一屏约 0.1 秒），不能画一笔发一次；② 上电自动探测 0x3C/0x3D 地址，兼容不同批次的模块；③ 支持中文：UTF-8 解码 + 16x16 字库 + 中英混排。
+- <strong>原理</strong>：显存是"页格式"（一个字节 = 一列 8 个像素）；I2C 每包第一个字节是控制字（0x00 命令 / 0x40 数据）；汉字按 Unicode 码点查字库；反白 = color 参数取反。
+- <strong>用到的知识</strong>：I2C 协议、SSD1306 显存与命令、位运算、UTF-8 编码、点阵字库、显存缓冲思想。
+- <strong>看代码抓手</strong>：<code>oled_buffer</code>（显存）→ <code>oled_draw_pixel/fill_rect</code>（画图）→ <code>oled_utf8_next/show_cn/show_text</code>（显示管线）→ <code>oled_refresh</code>（整屏推送）。</p>
+</blockquote></div>
 <pre>// oled.c —— SSD1306 OLED 驱动（I2C1：PB6=SCL、PB7=SDA，100kHz）
 //
 // 【显存模型】画面不直接写屏幕，先画在这块 1024 字节的显存 oled_buffer 里，
@@ -628,6 +659,14 @@ void oled_show_text(uint8_t x, uint8_t y, const char *str, uint8_t color)
 </section>
 <section id="f5">
 <h2>5. buzzer.c</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：蜂鸣器的"演奏家"——5 段音效（按键嘀 / 确认 / 成功叮咚 / 失败嘟呜 / 提示两短）排队播放。
+- <strong>为什么这么写</strong>：① 无源蜂鸣器要方波，用定时器 PWM 硬件产生——设好参数后 CPU 零负担；② 播放非阻塞（每 10ms 走一步），不卡按键和屏幕；③ 开机先静音再启动，避免上电"啪"一声。
+- <strong>原理</strong>：频率 = 音调（<code>ARR = 1MHz/f − 1</code>）；占空比 50%；静音 = 占空比 0（配合极性 Low）；一首曲子就是一张 <code>{频率, 时长}</code> 数组。
+- <strong>用到的知识</strong>：PWM 原理、定时器（PSC/ARR/CCR/预装载）、低电平触发模块、非阻塞播放。
+- <strong>看代码抓手</strong>：顶部五张音色表 → <code>buzzer_play_note()</code>（频率→ARR）→ <code>buzzer_tick()</code>（后台换音符）→ "先置 0 再开播"的防吵架技巧。</p>
+</blockquote></div>
 <pre>// buzzer.c —— 无源蜂鸣器驱动（PB0 / TIM3_CH3，低电平触发模块）
 //
 // 【原理】无源蜂鸣器要靠“交流信号”才响：PWM 的频率决定音调（2kHz 尖、1kHz 沉），
@@ -774,6 +813,14 @@ void buzzer_notice(void)
 </section>
 <section id="f6">
 <h2>6. led.c</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：红/绿状态灯的"开关"——正确亮绿、错误亮红、锁定红灯慢闪。
+- <strong>为什么这么写</strong>：① 亮灭极性集中写在两个小函数里（<code>led_red_write</code> / <code>led_green_write</code>），将来改接法只改这两处；② 上电自己再配一遍引脚（开漏），不依赖 CubeMX；③ 慢闪"看时刻翻转"，不用延时。
+- <strong>原理</strong>：开漏输出 = 引脚只会"拉低"或"放开"；接法是 <code>3.3V → LED → 电阻 → 引脚</code>，拉低 = 导通点亮。
+- <strong>用到的知识</strong>：开漏输出与开漏接法、LED 限流电阻、非阻塞闪烁（时间戳比较）。
+- <strong>看代码抓手</strong>：<code>led_pins_config()</code>（引脚自配）→ 两个 write（极性）→ <code>led_blink/led_task</code>（慢闪）→ 顶部体检开关。</p>
+</blockquote></div>
 <pre>// led.c —— 红/绿状态指示灯（红灯=PB1、绿灯=PA4，开漏输出）
 //
 // 【接线】3.3V → LED 长脚(+) → LED 短脚(−) → 限流电阻(220Ω~1kΩ) → 引脚。
@@ -914,6 +961,14 @@ void led_task(void)
 </section>
 <section id="f7">
 <h2>7. clock.c</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：软件时钟——数秒走时（自动进位 + 闰年 + 星期），每过整分钟把时间存 Flash，上电时恢复。
+- <strong>为什么这么写</strong>：① 没有电池，用"数拍子"的软时钟最省事；② 断电最多丢 1 分钟（每分钟存一次换寿命）；③ Flash 只能整页擦除 → 用"账本式追加写"把擦除次数摊给 64 次写入。
+- <strong>原理</strong>：秒→分→时→天（星期跟着 +1）→月的进位链；每条记录 16 字节 = 魔数 'TIME' + 时间 + 校验和；上电从后往前找"最新且合法"的记录；写满 64 格整页擦掉重来。
+- <strong>用到的知识</strong>：Flash 编程四步曲（解锁 → 擦除 → 写入 → 上锁）、半字写入、校验和、闰年规则、蔡勒公式（算星期）、账本式存储。
+- <strong>看代码抓手</strong>：<code>clock_add_seconds()</code>（进位 + 每分钟触发存储）→ <code>clock_flash_save()</code>（四步曲）→ <code>clock_flash_load()</code>（从后往前翻账）。</p>
+</blockquote></div>
 <pre>// clock.c —— 软件时钟 + 断电保存（Flash“账本”存储）
 //
 // 【走时】没有电池的软时钟：数 HAL_GetTick 的毫秒滴答，1 秒 1 秒往前加，
@@ -1046,6 +1101,7 @@ static uint8_t clock_slot_checksum(const clock_slot_t *slot)
 // 把当前时间存进 Flash：从前往后找空“格子”追加写入（不覆盖旧数据）。
 // 为什么用“账本”而不是直接覆盖一格：Flash 只能整页擦除（1KB/次），
 // 追加式写入让“擦一页”摊给 64 次写入 → 大大延长 Flash 擦写寿命
+// 【Flash 写入流程】① 解锁（写使能）→ ② 擦除（需要时）→ ③ 写入 → ④ 上锁
 static void clock_flash_save(void)
 {
 	clock_slot_t slot;
@@ -1084,12 +1140,13 @@ static void clock_flash_save(void)
 	}
 	slot.checksum = clock_slot_checksum(&amp;slot);
 
-	// 3. 开写
+	// 3. 开写：Flash 写入【四步曲】——① 解锁（写使能）→ ② 擦除（需要时）→ ③ 写入 → ④ 上锁
+	//    ① 解锁（写使能）：解除写保护，之后才能擦除和写入
 	HAL_FLASH_Unlock();
 
 	if (need_erase)
 	{
-		// 整页擦掉（擦完后所有格子都变成 0xFFFFFFFF）
+		//    ② 擦除（需要时才做）：整页擦回全 1（0xFFFFFFFF）——Flash 只能把 1 写成 0，要写新数据必须先擦
 		erase.TypeErase = FLASH_TYPEERASE_PAGES;
 		erase.PageAddress = CLOCK_FLASH_ADDR;
 		erase.NbPages = 1;
@@ -1101,7 +1158,7 @@ static void clock_flash_save(void)
 		addr = CLOCK_FLASH_ADDR;
 	}
 
-	// 按半字（2 字节）一个个写进去
+	//    ③ 写入（编程）：按半字（2 字节）逐个写——F1 的编程粒度就是半字，16 字节分 8 次
 	p = (const uint16_t *)&amp;slot;
 	for (i = 0; i &lt; (uint8_t)(CLOCK_SLOT_SIZE / 2); i++)
 	{
@@ -1111,6 +1168,7 @@ static void clock_flash_save(void)
 		}
 	}
 
+	//    ④ 上锁：恢复写保护，防止后续代码误改 Flash
 	HAL_FLASH_Lock();
 }
 
@@ -1226,6 +1284,14 @@ const clock_time_t *clock_get(void)
 </section>
 <section id="f8">
 <h2>8. settings.c</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：保管两样宝贝——密码和连续输错次数（都在 Flash 里，掉电不丢）。
+- <strong>为什么这么写</strong>：① 和时钟共用一套"账本"机制；② 用魔数区分两条记录（'PWD1' 密码 / 'FAIL' 次数）；③ <strong>不信任存储介质</strong>——读出来先验校验和、再验数值合法性，坏数据跳过；④ 先改内存再写 Flash（运行中永远用最新值）。
+- <strong>原理</strong>：16 字节记录；读时三层验证（魔数 + 校验和 → 长度 4~8 → 每位 0~9）；写时机：改密码成功 / 每次输错 / 清零；默认密码只在"从来没记录"时用。
+- <strong>用到的知识</strong>：Flash 四步曲的复用、记录式存储、数据完整性校验、默认值策略、防写坏降级。
+- <strong>看代码抓手</strong>：<code>settings_init()</code>（上电恢复）→ <code>settings_flash_write()</code>（通用写入）→ 读时的三层验证 → 两个"装填"专用函数。</p>
+</blockquote></div>
 <pre>// settings.c —— 系统设置存储：密码 + 连续输错次数（断电不丢）
 //
 // 【存哪儿】Flash 倒数第二页 0x0800F800（1KB），和时钟那页（0x0800FC00）分开。
@@ -1329,6 +1395,7 @@ static uint8_t settings_flash_load(void)
 // 通用：往 Flash 追加写一条 16 字节记录（从前往后找空格子；写满整页才擦掉重来）。
 // 为什么用“账本追加”：Flash 只能整页擦除（1KB/次），追加写把擦除次数摊薄；
 // 而且任意一条写坏都不影响老记录，校验不过跳过就行
+// 【Flash 写入流程】① 解锁（写使能）→ ② 擦除（需要时）→ ③ 写入 → ④ 上锁
 static void settings_flash_write(const uint8_t *rec)
 {
 	FLASH_EraseInitTypeDef erase;
@@ -1351,11 +1418,13 @@ static void settings_flash_write(const uint8_t *rec)
 		}
 	}
 
-	// 2. 开写
+	// 2. 开写：Flash 写入【四步曲】——① 解锁（写使能）→ ② 擦除（需要时）→ ③ 写入 → ④ 上锁
+	//    ① 解锁（写使能）：解除写保护，之后才能擦除和写入
 	HAL_FLASH_Unlock();
 
 	if (need_erase)
 	{
+		//    ② 擦除（需要时才做）：整页擦回全 1（0xFFFFFFFF）——Flash 只能把 1 写成 0，要写新数据必须先擦
 		erase.TypeErase = FLASH_TYPEERASE_PAGES;
 		erase.PageAddress = SETTINGS_FLASH_ADDR;
 		erase.NbPages = 1;
@@ -1367,6 +1436,7 @@ static void settings_flash_write(const uint8_t *rec)
 		addr = SETTINGS_FLASH_ADDR;
 	}
 
+	//    ③ 写入（编程）：按半字（2 字节）逐个写——F1 的编程粒度就是半字，16 字节分 8 次
 	p = (const uint16_t *)rec;
 	for (i = 0; i &lt; (uint8_t)(SETTINGS_SLOT_SIZE / 2); i++)
 	{
@@ -1376,6 +1446,7 @@ static void settings_flash_write(const uint8_t *rec)
 		}
 	}
 
+	//    ④ 上锁：恢复写保护，防止后续代码误改 Flash
 	HAL_FLASH_Lock();
 }
 
@@ -1515,6 +1586,14 @@ void settings_set_fail_count(uint8_t count)
 </section>
 <section id="f9">
 <h2>9. ui.c</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：整个作品的"大脑"——页面状态机（主页/菜单/密码锁/修改密码）、密码校验、锁定与解锁规则、屏幕刷新调度。
+- <strong>为什么这么写</strong>：① 4 个页面各配"按键处理 + 画面绘制"两个函数，用 <code>s_page</code> 分发——结构清晰；② 用 <code>s_dirty</code> 脏标记"变了才刷"（刷屏贵）；③ 两个密码页面共用一套"数字输入编辑器"组件；④ 结果展示 2 秒内忽略按键（防手快误触）。
+- <strong>原理</strong>：<code>ui_task()</code> 八步循环；密码校验 = 位数 + 逐位比对；错 3 次锁 30 秒；到期不清零、只再给 1 次；输对 / 改密码成功才清零（错误次数存 Flash，断电不逃）。
+- <strong>用到的知识</strong>：状态机、组件化复用、非阻塞计时（截止时刻比较）、用户体验设计（防误触 / 提示音 / 自动返回）、Flash 存储的调用时机。
+- <strong>看代码抓手</strong>：<code>s_page</code> 分发 → 各页 <code>xxx_key/xxx_draw</code> → <code>digit_edit_key</code>（共用输入）→ <code>ui_pwd_page_submit</code>（校验与锁定）→ <code>ui_task</code> 八步。</p>
+</blockquote></div>
 <pre>// ui.c —— 应用层：界面与页面状态机（中文界面）
 //
 // 【页面地图】（BACK 逐级返回；菜单页 30 秒无操作自动回主页）
@@ -2443,6 +2522,13 @@ void ui_task(void)
 </section>
 <section id="f10">
 <h2>10. key.h</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：按键模块的对外接口：按键编号（UP/DOWN/OK/BACK）、四种事件类型、三个函数（初始化 / 扫描 / 取事件）。
+- <strong>为什么这么写</strong>：接口与实现分离——调用方只看"名片"，不用关心内部怎么实现；改实现时调用方一行不用动。
+- <strong>用到的知识</strong>：C 语言跨文件编译、声明与定义、头文件保护（#pragma once）。
+- <strong>看代码抓手</strong>：先看它就懂了 key.c 的服务清单。</p>
+</blockquote></div>
 <pre>#pragma once
 #include"main.h"
 
@@ -2469,6 +2555,13 @@ uint8_t key_get_event(uint8_t *key, uint8_t *event);	// 主循环取事件：1=�
 </section>
 <section id="f11">
 <h2>11. oled.h</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：屏幕模块的对外接口：尺寸参数、I2C 地址、9 个绘图函数（画点/矩形/字符/汉字/刷屏）。
+- <strong>为什么这么写</strong>：接口与实现分离——调用方只看"名片"，不用关心内部怎么实现；改实现时调用方一行不用动。
+- <strong>用到的知识</strong>：C 语言跨文件编译、声明与定义、头文件保护（#pragma once）。
+- <strong>看代码抓手</strong>：ui.c 里所有显示都从这里进。</p>
+</blockquote></div>
 <pre>#pragma once
 #include"main.h"
 
@@ -2499,6 +2592,13 @@ uint16_t oled_text_width(const char *str);										// 算一段文字的像素�
 </section>
 <section id="f12">
 <h2>12. buzzer.h</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：蜂鸣器模块的对外接口：5 个场景音效函数（按键/确认/成功/失败/提示）。
+- <strong>为什么这么写</strong>：接口与实现分离——调用方只看"名片"，不用关心内部怎么实现；改实现时调用方一行不用动。
+- <strong>用到的知识</strong>：C 语言跨文件编译、声明与定义、头文件保护（#pragma once）。
+- <strong>看代码抓手</strong>：ui.c 听到的每一种声音都来自这里。</p>
+</blockquote></div>
 <pre>#pragma once
 #include"main.h"
 
@@ -2516,6 +2616,13 @@ void buzzer_notice(void);	// 提示：两短声（至少4位、已清空）
 </section>
 <section id="f13">
 <h2>13. led.h</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：状态灯模块的对外接口：四个动作（亮绿 / 亮红 / 全灭 / 红灯慢闪）。
+- <strong>为什么这么写</strong>：接口与实现分离——调用方只看"名片"，不用关心内部怎么实现；改实现时调用方一行不用动。
+- <strong>用到的知识</strong>：C 语言跨文件编译、声明与定义、头文件保护（#pragma once）。
+- <strong>看代码抓手</strong>：锁定慢闪就是 <code>led_blink(1)</code>。</p>
+</blockquote></div>
 <pre>#pragma once
 #include"main.h"
 
@@ -2533,6 +2640,13 @@ void led_task(void);		// 每轮主循环调用一次：负责慢闪计时
 </section>
 <section id="f14">
 <h2>14. clock.h</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：时钟模块的对外接口：时间结构体 + 走时 / 校时 / 读取三个函数。
+- <strong>为什么这么写</strong>：接口与实现分离——调用方只看"名片"，不用关心内部怎么实现；改实现时调用方一行不用动。
+- <strong>用到的知识</strong>：C 语言跨文件编译、声明与定义、头文件保护（#pragma once）。
+- <strong>看代码抓手</strong>：上电恢复、每分钟存储都在 clock.c 里。</p>
+</blockquote></div>
 <pre>#pragma once
 #include"main.h"
 
@@ -2559,6 +2673,13 @@ const clock_time_t *clock_get(void);		// 读取当前时间（只读）
 </section>
 <section id="f15">
 <h2>15. settings.h</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：密码存储模块的对外接口：读密码 / 存密码 / 读错误次数 / 存错误次数。
+- <strong>为什么这么写</strong>：接口与实现分离——调用方只看"名片"，不用关心内部怎么实现；改实现时调用方一行不用动。
+- <strong>用到的知识</strong>：C 语言跨文件编译、声明与定义、头文件保护（#pragma once）。
+- <strong>看代码抓手</strong>：默认密码 1234 也写在这里的注释里。</p>
+</blockquote></div>
 <pre>#pragma once
 #include"main.h"
 
@@ -2577,6 +2698,13 @@ void settings_set_fail_count(uint8_t count);				// 保存连续输错次数（�
 </section>
 <section id="f16">
 <h2>16. ui.h</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：应用层的对外接口：就两个函数——<code>ui_init()</code>（初始化）和 <code>ui_task()</code>（主循环任务）。
+- <strong>为什么这么写</strong>：接口与实现分离——调用方只看"名片"，不用关心内部怎么实现；改实现时调用方一行不用动。
+- <strong>用到的知识</strong>：C 语言跨文件编译、声明与定义、头文件保护（#pragma once）。
+- <strong>看代码抓手</strong>：整个作品在 main.c 眼里就是“两个函数”。</p>
+</blockquote></div>
 <pre>#pragma once
 #include"main.h"
 
@@ -2589,6 +2717,14 @@ void ui_task(void);		// 主循环里反复调用：处理按键、走时、刷�
 </section>
 <section id="f17">
 <h2>17. oledfont.h</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：把"字的形状"存成点阵数据（ASCII 95 个 / 汉字 48 个），供 oled.c 画字时查表。
+- <strong>为什么这么写</strong>：① 纯数据用 <code>const</code> 放在 Flash 里，省 RAM；② 数据格式刻意跟显存一致（bit0 = 最上面一行）——画字时"取一位、判一位"，逻辑最短。
+- <strong>原理</strong>：8x16 字符 = 16 字节（上半页 8 列 + 下半页 8 列）；16x16 汉字 = 32 字节；每字节的 bit0~bit7 对应该页从上到下的 8 行。
+- <strong>用到的知识</strong>：点阵显示原理、位打包、Python + PIL 脚本生成（渲染 → 二值化）、格式与硬件对齐的设计思想。
+- <strong>说明</strong>：点阵数据本身不用背——要能讲清"格式 + 生成方法"。</p>
+</blockquote></div>
 <div class="note">点阵数据太长，只展示前 16 行；其余 186 行为数据，生成方式见文件头注释。</div>
 <pre>#pragma once
 #include"main.h"
@@ -2609,6 +2745,14 @@ static const uint8_t oled_font8x16[95][16] =
 </section>
 <section id="f18">
 <h2>18. oledfont_cn.h</h2>
+<div class="intro"><blockquote>
+<p><strong>📘 模块导读（读代码前先看）</strong>
+- <strong>作用</strong>：把"字的形状"存成点阵数据（ASCII 95 个 / 汉字 48 个），供 oled.c 画字时查表。
+- <strong>为什么这么写</strong>：① 纯数据用 <code>const</code> 放在 Flash 里，省 RAM；② 数据格式刻意跟显存一致（bit0 = 最上面一行）——画字时"取一位、判一位"，逻辑最短。
+- <strong>原理</strong>：8x16 字符 = 16 字节（上半页 8 列 + 下半页 8 列）；16x16 汉字 = 32 字节；每字节的 bit0~bit7 对应该页从上到下的 8 行。
+- <strong>用到的知识</strong>：点阵显示原理、位打包、Python + PIL 脚本生成（渲染 → 二值化）、格式与硬件对齐的设计思想。
+- <strong>说明</strong>：点阵数据本身不用背——要能讲清"格式 + 生成方法"。</p>
+</blockquote></div>
 <div class="note">点阵数据太长，只展示前 16 行；其余 98 行为数据，生成方式见文件头注释。</div>
 <pre>#pragma once
 #include"main.h"
